@@ -3,20 +3,99 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
+// SVG Icon components
+const Icon = ({ d, size = 24 }: { d: string; size?: number }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d={d} />
+  </svg>
+);
+
+const StyleIcons: Record<string, React.ReactNode> = {
+  streetwear: (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2l3 7h7l-5.5 4.5 2 7L12 16l-6.5 4.5 2-7L2 9h7z" />
+    </svg>
+  ),
+  vintage: (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <circle cx="12" cy="12" r="3" />
+      <line x1="12" y1="2" x2="12" y2="6" />
+      <line x1="12" y1="18" x2="12" y2="22" />
+    </svg>
+  ),
+  minimal: (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <line x1="9" y1="3" x2="9" y2="21" />
+    </svg>
+  ),
+  bold: (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+    </svg>
+  ),
+  luxury: (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 2L2 7l10 5 10-5-10-5z" />
+      <path d="M2 17l10 5 10-5" />
+      <path d="M2 12l10 5 10-5" />
+    </svg>
+  ),
+  sports: (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6 9l6-6 6 6" />
+      <path d="M12 3v12" />
+      <path d="M3 18h18" />
+      <path d="M6 21h12" />
+    </svg>
+  ),
+};
+
+const ProductIcons: Record<string, React.ReactNode> = {
+  tee: (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6.5 2H4a1 1 0 0 0-1 1v1.5a5 5 0 0 0 3 4.5V21a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V9a5 5 0 0 0 3-4.5V3a1 1 0 0 0-1-1h-2.5" />
+      <path d="M9 2a3 3 0 0 0 6 0" />
+    </svg>
+  ),
+  hoodie: (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6.5 2H4a1 1 0 0 0-1 1v3a6 6 0 0 0 2 4.5V21a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V10.5A6 6 0 0 0 21 6V3a1 1 0 0 0-1-1h-2.5" />
+      <path d="M9 2a3 3 0 0 0 6 0" />
+      <path d="M9 22v-4a3 3 0 0 1 6 0v4" />
+    </svg>
+  ),
+  crew: (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M6.5 2H4a1 1 0 0 0-1 1v2a5 5 0 0 0 3 4.5V21a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1V9.5A5 5 0 0 0 21 5V3a1 1 0 0 0-1-1h-2.5" />
+      <path d="M10 2a2 2 0 0 0 4 0" />
+    </svg>
+  ),
+  cap: (
+    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 14h18" />
+      <path d="M4 14c0-5 3.5-9 8-9s8 4 8 9" />
+      <path d="M2 14c0 2 1.5 4 4 4h12c2.5 0 4-2 4-4" />
+      <path d="M20 14l2 1" />
+    </svg>
+  ),
+};
+
 const STYLES = [
-  { id: "streetwear", label: "Streetwear", emoji: "🔥" },
-  { id: "vintage", label: "Vintage", emoji: "🎞️" },
-  { id: "minimal", label: "Minimal", emoji: "⬜" },
-  { id: "bold", label: "Bold/Graphic", emoji: "💥" },
-  { id: "luxury", label: "Luxury", emoji: "✦" },
-  { id: "sports", label: "Sports", emoji: "⚡" },
+  { id: "streetwear", label: "Streetwear" },
+  { id: "vintage", label: "Vintage" },
+  { id: "minimal", label: "Minimal" },
+  { id: "bold", label: "Bold/Graphic" },
+  { id: "luxury", label: "Luxury" },
+  { id: "sports", label: "Sports" },
 ];
 
 const PRODUCTS = [
-  { id: "tee", label: "T-Shirt", icon: "👕" },
-  { id: "hoodie", label: "Hoodie", icon: "🧥" },
-  { id: "crew", label: "Crew Neck", icon: "👔" },
-  { id: "cap", label: "Cap", icon: "🧢" },
+  { id: "tee", label: "T-Shirt" },
+  { id: "hoodie", label: "Hoodie" },
+  { id: "crew", label: "Crew Neck" },
+  { id: "cap", label: "Cap" },
 ];
 
 const LOADING_STEPS = [
@@ -202,10 +281,7 @@ export default function Home() {
                   <br />
                   <span className="text-[#C5D82D]">Free. In 60 Seconds.</span>
                 </h1>
-                <p className="text-[#9CA3AF] text-lg max-w-md mx-auto">
-                  No designers. No upfront costs. Just your idea and AI that
-                  gets it.
-                </p>
+
               </div>
 
               {/* Error message */}
@@ -303,7 +379,7 @@ export default function Home() {
                             : "border-[#222] bg-[#111] text-[#9CA3AF] hover:border-[#333] hover:text-white"
                         }`}
                       >
-                        <span className="text-xl">{s.emoji}</span>
+                        <span className="text-xl">{StyleIcons[s.id]}</span>
                         <span className="text-xs font-medium">{s.label}</span>
                       </button>
                     ))}
@@ -326,7 +402,7 @@ export default function Home() {
                             : "border-[#222] bg-[#111] text-[#9CA3AF] hover:border-[#333] hover:text-white"
                         }`}
                       >
-                        <span className="text-2xl">{p.icon}</span>
+                        <span className="text-2xl">{ProductIcons[p.id]}</span>
                         <span className="text-xs font-medium">{p.label}</span>
                       </button>
                     ))}
