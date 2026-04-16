@@ -175,14 +175,33 @@ export default function Home() {
     }, 200);
 
     try {
+      // Build request body with optional logo
+      const requestBody: Record<string, string> = {
+        brandName: brandName.trim(),
+        style: selectedStyle,
+        product: selectedProduct,
+      };
+
+      // If logo is uploaded, convert to base64 and include it
+      if (logoFile) {
+        const logoBase64 = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = () => {
+            const result = reader.result as string;
+            // Strip the data:image/xxx;base64, prefix
+            const base64 = result.split(',')[1];
+            resolve(base64);
+          };
+          reader.readAsDataURL(logoFile);
+        });
+        requestBody.logoBase64 = logoBase64;
+        requestBody.logoMimeType = logoFile.type || 'image/png';
+      }
+
       const res = await fetch("/api/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          brandName: brandName.trim(),
-          style: selectedStyle,
-          product: selectedProduct,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       clearInterval(stepInterval);

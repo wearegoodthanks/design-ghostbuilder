@@ -41,9 +41,12 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       brandName: string;
       style: string;
       product: string;
+      logoBase64?: string;
+      logoMimeType?: string;
     };
 
-    const { brandName, style, product } = body;
+    const { brandName, style, product, logoBase64, logoMimeType } = body;
+    const hasLogo = Boolean(logoBase64 && logoMimeType);
 
     if (!brandName || !style || !product) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
@@ -65,7 +68,12 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
     // Generate 4 designs in parallel
     const designPromises = DESIGN_VARIATIONS.map(async (variation) => {
+      const logoContext = hasLogo
+        ? `I have attached the brand's existing logo. Use this logo as a reference - incorporate its style, colors, and visual identity into the design. The design should feel like it belongs to the same brand.`
+        : ``;
+
       const prompt = `Create a professional apparel graphic design for a brand called "${brandName}". 
+${logoContext}
 Style: ${stylePrompt}. 
 Design type: ${variation.prompt}. 
 The design should look like it belongs ${productContext}.
@@ -74,6 +82,17 @@ No mockup, no product, just the design/artwork itself.
 High quality, print-ready, professional brand design.
 The brand name "${brandName}" should be clearly visible in the design.`;
 
+      // Build content parts - text + optional logo image
+      const contentParts: any[] = [{ text: prompt }];
+      if (hasLogo) {
+        contentParts.push({
+          inlineData: {
+            mimeType: logoMimeType,
+            data: logoBase64,
+          },
+        });
+      }
+
       try {
         const response = await fetch(
           `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`,
@@ -81,7 +100,7 @@ The brand name "${brandName}" should be clearly visible in the design.`;
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              contents: [{ parts: [{ text: prompt }] }],
+              contents: [{ parts: contentParts }],
               generationConfig: {
                 responseModalities: ["TEXT", "IMAGE"],
               },
