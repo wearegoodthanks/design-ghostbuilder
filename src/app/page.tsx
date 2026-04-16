@@ -278,8 +278,6 @@ export default function Home() {
                 </div>
                 <h1 className="text-4xl sm:text-5xl font-bold leading-tight mb-4">
                   Design Your Brand.
-                  <br />
-                  <span className="text-[#C5D82D]">Free. In 60 Seconds.</span>
                 </h1>
 
               </div>
@@ -295,7 +293,7 @@ export default function Home() {
                 </motion.div>
               )}
 
-              <div className="space-y-6">
+              <div className="space-y-8">
                 {/* Brand Name */}
                 <div>
                   <label className="block text-sm font-semibold text-[#9CA3AF] uppercase tracking-wider mb-2">
@@ -346,9 +344,27 @@ export default function Home() {
                   ) : (
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      className="w-full bg-[#111] border border-dashed border-[#333] rounded-xl px-4 py-6 text-center hover:border-[#C5D82D]/50 transition-colors group"
+                      onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.add('border-[#C5D82D]'); }}
+                      onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); e.currentTarget.classList.remove('border-[#C5D82D]'); }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        e.currentTarget.classList.remove('border-[#C5D82D]');
+                        const file = e.dataTransfer.files?.[0];
+                        if (file && file.type.startsWith('image/')) {
+                          setLogoFile(file);
+                          const reader = new FileReader();
+                          reader.onload = (ev) => setLogoPreview(ev.target?.result as string);
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="w-full bg-[#111] border border-dashed border-[#333] rounded-xl px-4 py-8 text-center hover:border-[#C5D82D]/50 transition-colors group"
                     >
-                      <span className="text-2xl block mb-1">📁</span>
+                      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="mx-auto mb-2 text-[#444] group-hover:text-[#666]">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="17 8 12 3 7 8" />
+                        <line x1="12" y1="3" x2="12" y2="15" />
+                      </svg>
                       <span className="text-[#666] group-hover:text-[#999] text-sm">
                         Drop your logo here or click to upload
                       </span>
@@ -424,7 +440,7 @@ export default function Home() {
                   Create My Designs →
                 </motion.button>
 
-                <p className="text-center text-[#333] text-xs">
+                <p className="text-center text-[#444] text-xs mt-2">
                   Powered by AI. Designs generated in under 60 seconds.
                 </p>
               </div>
