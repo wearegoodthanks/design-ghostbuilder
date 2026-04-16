@@ -134,6 +134,7 @@ Design type: ${variation.prompt}.
 The design should look like it belongs ${productContext}.
 Create ONLY the graphic design artwork on a plain solid dark background (#111111). 
 No mockup, no product, just the design/artwork itself. 
+IMPORTANT: The design elements (text, graphics, icons) must use WHITE, light colors, or bright accent colors so they are clearly visible when printed on a dark garment. Avoid large areas of black or very dark colors in the design itself.
 High quality, print-ready, professional brand design.
 The brand name "${brandName}" should be clearly visible in the design.`;
 
@@ -163,13 +164,14 @@ The brand name "${brandName}" should be clearly visible in the design.`;
       const scene = scenes[i % scenes.length];
 
       const productNames: Record<string, string> = {
-        tee: "black heavyweight premium t-shirt",
-        hoodie: "black heavyweight pullover hoodie",
-        crew: "black crew neck sweatshirt",
-        cap: "black structured snapback cap",
+        tee: "dark charcoal grey heavyweight premium t-shirt",
+        hoodie: "dark charcoal grey heavyweight pullover hoodie",
+        crew: "dark charcoal grey crew neck sweatshirt",
+        cap: "dark charcoal grey structured snapback cap",
       };
 
-      const mockupPrompt = `Place this graphic design onto a ${productNames[product] || "black t-shirt"}.
+      const mockupPrompt = `Place this graphic design onto a ${productNames[product] || "dark charcoal grey t-shirt"}.
+IMPORTANT: Use a CHARCOAL GREY or DARK HEATHER garment color (NOT pure black) so the design artwork is clearly visible and stands out against the fabric.
 Show the product ${scene}.
 The design should be clearly visible, properly scaled and centered on the product.
 Photorealistic, professional product photography.
