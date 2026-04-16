@@ -9,6 +9,13 @@ const spaceGrotesk = Space_Grotesk({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://design.ghostbuilder.com"),
+  icons: {
+    icon: [
+      { url: "/favicon-32x32.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-192x192.png", sizes: "192x192", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
   title: "Design Your Brand | Ghost Builder",
   description: "Turn your idea into a real brand. Professional designs and product mockups generated for free. Powered by the team behind $1B+ in streetwear.",
   openGraph: {
