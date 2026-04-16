@@ -460,7 +460,7 @@ export default function Home() {
                 </motion.button>
 
                 <p className="text-center text-[#444] text-xs mt-2">
-                  Powered by AI. Designs generated in under 60 seconds.
+                  Professional designs generated in under 60 seconds.
                 </p>
               </div>
             </motion.div>
@@ -533,16 +533,14 @@ export default function Home() {
                   transition={{ type: "spring", duration: 0.5 }}
                   className="inline-flex items-center gap-2 bg-[#C5D82D]/10 border border-[#C5D82D]/30 text-[#C5D82D] text-sm font-semibold px-4 py-2 rounded-full mb-4"
                 >
-                  ✓ {designs.filter((d) => d.image).length} designs generated
+                  ✓ {designs.filter((d) => d.image).length} designs ready
                 </motion.div>
                 <h2 className="text-3xl sm:text-4xl font-bold mb-2">
                   Your brand, ready to sell.
                 </h2>
                 <p className="text-[#9CA3AF]">
-                  AI-generated designs for{" "}
                   <span className="text-white font-semibold">{brandName}</span>{" "}
-                  -{" "}
-                  {STYLES.find((s) => s.id === selectedStyle)?.label} on{" "}
+                  - {STYLES.find((s) => s.id === selectedStyle)?.label} on{" "}
                   {PRODUCTS.find((p) => p.id === selectedProduct)?.label}
                 </p>
               </div>
