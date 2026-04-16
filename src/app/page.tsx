@@ -261,7 +261,7 @@ export default function Home() {
         </a>
       </nav>
 
-      <main className="flex-1 flex flex-col items-center justify-center px-4 py-12">
+      <main className="flex-1 flex flex-col items-center justify-center px-6 sm:px-8 py-16">
         <AnimatePresence mode="wait">
           {/* STEP 1: INPUT */}
           {step === "input" && (
@@ -272,7 +272,7 @@ export default function Home() {
               exit={{ opacity: 0, y: -20 }}
               className="w-full max-w-2xl"
             >
-              <div className="text-center mb-10">
+              <div className="text-center mb-14">
                 <div className="inline-flex items-center gap-2 bg-[#C5D82D]/10 border border-[#C5D82D]/20 text-[#C5D82D] text-xs font-semibold uppercase tracking-wider px-3 py-1.5 rounded-full mb-4">
                   Free. No Credit Card. 60 Seconds.
                 </div>
@@ -293,7 +293,7 @@ export default function Home() {
                 </motion.div>
               )}
 
-              <div className="space-y-8">
+              <div className="space-y-10">
                 {/* Brand Name */}
                 <div>
                   <label className="block text-sm font-semibold text-[#9CA3AF] uppercase tracking-wider mb-2">
