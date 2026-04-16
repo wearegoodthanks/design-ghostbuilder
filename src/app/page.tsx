@@ -245,14 +245,24 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Nav */}
-      <nav className="flex items-center justify-between px-5 sm:px-6 py-4 border-b border-[#1a1a1a]">
-        <a href="https://ghostbuilder.com" className="flex items-center gap-2">
-          <span className="text-white font-bold text-lg sm:text-xl tracking-tight">GHOST BUILDER</span>
-        </a>
-        <div className="flex items-center gap-4">
-          <a href="https://studio.ghostbuilder.com" className="text-sm text-[#9CA3AF] hover:text-white transition-colors hidden sm:inline">Studio</a>
-          <a href="https://ghostbuilder.com/register" className="text-sm text-[#C5D82D] hover:text-white transition-colors font-medium">Start Selling →</a>
+      <nav className="flex items-center justify-between px-6 py-6 md:px-12">
+        <div className="flex justify-center md:justify-start w-full md:w-auto">
+          <a href="https://ghostbuilder.com">
+            <img
+              src="/ghost-builder-logo-new.png"
+              alt="Ghost Builder"
+              width={160}
+              height={48}
+              className="w-[160px] h-auto object-contain"
+            />
+          </a>
         </div>
+        <a
+          href="https://ghostbuilder.com/register"
+          className="hidden sm:block text-xs uppercase tracking-widest text-white/50 hover:text-[#C5D82D] transition-colors"
+        >
+          Let&apos;s Build Yours
+        </a>
       </nav>
 
       <main className="flex-1 flex flex-col items-center justify-center px-5 sm:px-8 py-10 sm:py-16">
