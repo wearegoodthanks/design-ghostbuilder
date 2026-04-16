@@ -1,5 +1,4 @@
-// Cloudflare Pages Function - handles AI design generation
-// This runs server-side so API keys stay safe
+// Cloudflare Pages Function - handles design generation + lifestyle mockups
 
 interface Env {
   GOOGLE_AI_API_KEY: string;
@@ -21,12 +20,73 @@ const PRODUCT_CONTEXT: Record<string, string> = {
   cap: "on a structured snapback cap, front panel embroidery style",
 };
 
+const MOCKUP_SCENES: Record<string, string[]> = {
+  tee: [
+    "worn by a person standing casually in an urban street setting, professional product photography, natural lighting",
+    "laid flat on a dark concrete surface, styled with accessories, overhead shot, studio lighting",
+    "worn by a person in a creative studio space, candid lifestyle shot, warm lighting",
+    "hanging on a wooden hanger against a textured wall, clean product photography, soft shadows",
+  ],
+  hoodie: [
+    "worn by a person in a city street at dusk, lifestyle photography, moody lighting",
+    "laid flat on a dark wooden surface with coffee and accessories, overhead flat lay",
+    "worn by a person leaning against a brick wall, urban lifestyle, natural light",
+    "folded neatly on a shelf in a premium retail store display",
+  ],
+  crew: [
+    "worn by a person in a minimalist cafe setting, lifestyle photography, warm tones",
+    "laid flat on linen fabric, styled overhead shot, soft natural lighting",
+    "worn casually tucked into jeans, street style photography",
+    "displayed on a mannequin in a boutique store setting",
+  ],
+  cap: [
+    "worn by a person outdoors, street style portrait, shallow depth of field",
+    "placed on a dark surface next to sunglasses, styled product shot",
+    "worn backwards by a person in an urban setting, lifestyle shot",
+    "displayed on a cap stand against a textured background",
+  ],
+};
+
 const DESIGN_VARIATIONS = [
   { name: "Wordmark", prompt: "typographic wordmark logo design, brand name prominently featured as the main design element" },
   { name: "Graphic", prompt: "graphic logo mark with icon and text, illustrated emblem style" },
   { name: "Badge", prompt: "circular or shield badge design, vintage badge aesthetic with brand name" },
   { name: "Abstract", prompt: "abstract modern graphic design, contemporary art influence with brand name integrated" },
 ];
+
+const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent";
+
+async function generateImage(apiKey: string, contentParts: any[]): Promise<{ image: string | null; error: string | null }> {
+  try {
+    const response = await fetch(`${GEMINI_URL}?key=${apiKey}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: [{ parts: contentParts }],
+        generationConfig: { responseModalities: ["TEXT", "IMAGE"] },
+      }),
+    });
+
+    if (!response.ok) {
+      return { image: null, error: `API error: ${response.status}` };
+    }
+
+    const data = await response.json() as any;
+    const parts = data?.candidates?.[0]?.content?.parts || [];
+    const imagePart = parts.find((p: any) => p.inlineData?.mimeType?.startsWith("image/"));
+
+    if (imagePart?.inlineData?.data) {
+      return {
+        image: `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`,
+        error: null,
+      };
+    }
+
+    return { image: null, error: "No image in response" };
+  } catch (err) {
+    return { image: null, error: String(err) };
+  }
+}
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   const headers = {
@@ -49,29 +109,24 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     const hasLogo = Boolean(logoBase64 && logoMimeType);
 
     if (!brandName || !style || !product) {
-      return new Response(JSON.stringify({ error: "Missing required fields" }), {
-        status: 400,
-        headers,
-      });
+      return new Response(JSON.stringify({ error: "Missing required fields" }), { status: 400, headers });
     }
 
     const apiKey = context.env.GOOGLE_AI_API_KEY;
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: "API key not configured" }), {
-        status: 500,
-        headers,
-      });
+      return new Response(JSON.stringify({ error: "API key not configured" }), { status: 500, headers });
     }
 
     const stylePrompt = STYLE_PROMPTS[style] || STYLE_PROMPTS.streetwear;
     const productContext = PRODUCT_CONTEXT[product] || PRODUCT_CONTEXT.tee;
+    const scenes = MOCKUP_SCENES[product] || MOCKUP_SCENES.tee;
 
-    // Generate 4 designs in parallel
+    const logoContext = hasLogo
+      ? `I have attached the brand's existing logo. Use this logo as a reference - incorporate its style, colors, and visual identity into the design. The design should feel like it belongs to the same brand.`
+      : ``;
+
+    // STEP 1: Generate 4 designs in parallel
     const designPromises = DESIGN_VARIATIONS.map(async (variation) => {
-      const logoContext = hasLogo
-        ? `I have attached the brand's existing logo. Use this logo as a reference - incorporate its style, colors, and visual identity into the design. The design should feel like it belongs to the same brand.`
-        : ``;
-
       const prompt = `Create a professional apparel graphic design for a brand called "${brandName}". 
 ${logoContext}
 Style: ${stylePrompt}. 
@@ -82,73 +137,67 @@ No mockup, no product, just the design/artwork itself.
 High quality, print-ready, professional brand design.
 The brand name "${brandName}" should be clearly visible in the design.`;
 
-      // Build content parts - text + optional logo image
       const contentParts: any[] = [{ text: prompt }];
       if (hasLogo) {
-        contentParts.push({
-          inlineData: {
-            mimeType: logoMimeType,
-            data: logoBase64,
-          },
-        });
+        contentParts.push({ inlineData: { mimeType: logoMimeType, data: logoBase64 } });
       }
 
-      try {
-        const response = await fetch(
-          `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${apiKey}`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              contents: [{ parts: contentParts }],
-              generationConfig: {
-                responseModalities: ["TEXT", "IMAGE"],
-              },
-            }),
-          }
-        );
+      return generateImage(apiKey, contentParts);
+    });
 
-        if (!response.ok) {
-          console.error(`Gemini API error: ${response.status}`);
-          return { name: variation.name, image: null, error: `API error: ${response.status}` };
-        }
+    const designResults = await Promise.all(designPromises);
 
-        const data = await response.json() as any;
-        
-        // Extract image data from response
-        const parts = data?.candidates?.[0]?.content?.parts || [];
-        const imagePart = parts.find((p: any) => p.inlineData?.mimeType?.startsWith("image/"));
-        
-        if (imagePart?.inlineData?.data) {
-          return {
-            name: variation.name,
-            image: `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`,
-            error: null,
-          };
-        }
-
-        return { name: variation.name, image: null, error: "No image in response" };
-      } catch (err) {
-        console.error(`Generation error for ${variation.name}:`, err);
-        return { name: variation.name, image: null, error: String(err) };
+    // STEP 2: Generate lifestyle mockups for successful designs
+    const mockupPromises = designResults.map(async (design, i) => {
+      if (!design.image) {
+        return { name: DESIGN_VARIATIONS[i].name, design: null, mockup: null, error: design.error };
       }
+
+      // Extract base64 from data URL
+      const base64Match = design.image.match(/^data:([^;]+);base64,(.+)$/);
+      if (!base64Match) {
+        return { name: DESIGN_VARIATIONS[i].name, design: design.image, mockup: null, error: "Invalid design data" };
+      }
+
+      const [, mimeType, b64Data] = base64Match;
+      const scene = scenes[i % scenes.length];
+
+      const productNames: Record<string, string> = {
+        tee: "black heavyweight premium t-shirt",
+        hoodie: "black heavyweight pullover hoodie",
+        crew: "black crew neck sweatshirt",
+        cap: "black structured snapback cap",
+      };
+
+      const mockupPrompt = `Place this graphic design onto a ${productNames[product] || "black t-shirt"}.
+Show the product ${scene}.
+The design should be clearly visible, properly scaled and centered on the product.
+Photorealistic, professional product photography.
+Do NOT add any text, watermarks, or labels. Just the product with the design.`;
+
+      const mockupParts: any[] = [
+        { text: mockupPrompt },
+        { inlineData: { mimeType, data: b64Data } },
+      ];
+
+      const mockupResult = await generateImage(apiKey, mockupParts);
+
+      return {
+        name: DESIGN_VARIATIONS[i].name,
+        design: design.image,
+        mockup: mockupResult.image,
+        error: mockupResult.error,
+      };
     });
 
-    const results = await Promise.all(designPromises);
+    const results = await Promise.all(mockupPromises);
 
-    return new Response(JSON.stringify({ designs: results }), {
-      status: 200,
-      headers,
-    });
+    return new Response(JSON.stringify({ designs: results }), { status: 200, headers });
   } catch (err) {
-    return new Response(JSON.stringify({ error: String(err) }), {
-      status: 500,
-      headers,
-    });
+    return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers });
   }
 };
 
-// Handle CORS preflight
 export const onRequestOptions: PagesFunction = async () => {
   return new Response(null, {
     headers: {

@@ -102,13 +102,16 @@ const LOADING_STEPS = [
   "Analyzing your brand...",
   "Generating designs...",
   "Creating variations...",
-  "Placing on mockups...",
+  "Placing on products...",
+  "Styling your mockups...",
+  "Final touches...",
   "Almost there...",
 ];
 
 interface DesignResult {
   name: string;
-  image: string | null;
+  design: string | null;
+  mockup: string | null;
   error: string | null;
 }
 
@@ -166,11 +169,11 @@ export default function Home() {
       if (stepIdx < LOADING_STEPS.length) {
         setLoadingStep(stepIdx);
       }
-    }, 3000);
+    }, 5000);
 
     let prog = 0;
     const progInterval = setInterval(() => {
-      prog += 0.5;
+      prog += 0.25;
       setLoadingProgress(Math.min(prog, 90));
     }, 200);
 
@@ -215,7 +218,7 @@ export default function Home() {
       const results: DesignResult[] = data.designs || [];
 
       // Check if we got any images
-      const hasImages = results.some((d: DesignResult) => d.image);
+      const hasImages = results.some((d: DesignResult) => d.mockup || d.design);
       if (!hasImages) {
         throw new Error("No designs were generated. Please try again.");
       }
@@ -247,7 +250,7 @@ export default function Home() {
           product: selectedProduct,
           hasLogo: !!logoFile,
           source: "design-tool",
-          designCount: designs.filter((d) => d.image).length,
+          designCount: designs.filter((d) => d.mockup || d.design).length,
         }),
       });
     } catch {}
@@ -533,7 +536,7 @@ export default function Home() {
                   transition={{ type: "spring", duration: 0.5 }}
                   className="inline-flex items-center gap-2 bg-[#C5D82D]/10 border border-[#C5D82D]/30 text-[#C5D82D] text-sm font-semibold px-4 py-2 rounded-full mb-4"
                 >
-                  ✓ {designs.filter((d) => d.image).length} designs ready
+                  ✓ {designs.filter((d) => d.mockup || d.design).length} designs ready
                 </motion.div>
                 <h2 className="text-3xl sm:text-4xl font-bold mb-2">
                   Your brand, ready to sell.
@@ -555,11 +558,11 @@ export default function Home() {
                     transition={{ delay: i * 0.15 }}
                     className="bg-[#111] border border-[#222] rounded-2xl overflow-hidden group hover:border-[#C5D82D]/40 transition-all"
                   >
-                    {/* Design image or placeholder */}
-                    <div className="aspect-square bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] flex items-center justify-center relative overflow-hidden">
-                      {design.image ? (
+                    {/* Lifestyle mockup (primary) or design fallback */}
+                    <div className="aspect-[3/4] bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] flex items-center justify-center relative overflow-hidden">
+                      {(design.mockup || design.design) ? (
                         <img
-                          src={design.image}
+                          src={design.mockup || design.design || ''}
                           alt={`${brandName} - ${design.name}`}
                           className="w-full h-full object-cover"
                         />
@@ -576,16 +579,24 @@ export default function Home() {
                       <div className="absolute top-3 left-3 text-xs bg-black/60 backdrop-blur-sm text-white px-2 py-0.5 rounded-full font-medium">
                         #{i + 1} {design.name}
                       </div>
-                      {design.image && (
-                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
-                          <button
-                            onClick={() =>
-                              design.image && downloadDesign(design.image, i)
-                            }
-                            className="bg-white/90 text-black text-sm font-semibold px-4 py-2 rounded-lg hover:bg-white transition-colors"
-                          >
-                            Download
-                          </button>
+                      {(design.mockup || design.design) && (
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+                          {design.mockup && (
+                            <button
+                              onClick={() => design.mockup && downloadDesign(design.mockup, i)}
+                              className="bg-white/90 text-black text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-white transition-colors"
+                            >
+                              Mockup
+                            </button>
+                          )}
+                          {design.design && (
+                            <button
+                              onClick={() => design.design && downloadDesign(design.design, i)}
+                              className="bg-[#C5D82D]/90 text-black text-xs font-semibold px-3 py-1.5 rounded-lg hover:bg-[#C5D82D] transition-colors"
+                            >
+                              Design
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
