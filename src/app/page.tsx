@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 const STYLES = [
@@ -22,16 +22,16 @@ const PRODUCTS = [
 const LOADING_STEPS = [
   "Analyzing your brand...",
   "Generating designs...",
+  "Creating variations...",
   "Placing on mockups...",
   "Almost there...",
 ];
 
-const DESIGN_CONCEPTS = [
-  { label: "Classic Wordmark", desc: "Clean type-based logo" },
-  { label: "Graphic Mark", desc: "Icon + wordmark combo" },
-  { label: "Distressed", desc: "Worn-in vintage feel" },
-  { label: "Minimal Badge", desc: "Simple arc or circle" },
-];
+interface DesignResult {
+  name: string;
+  image: string | null;
+  error: string | null;
+}
 
 type Step = "input" | "loading" | "results" | "success";
 
@@ -40,52 +40,98 @@ export default function Home() {
   const [brandName, setBrandName] = useState("");
   const [selectedStyle, setSelectedStyle] = useState("");
   const [selectedProduct, setSelectedProduct] = useState("");
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [loadingStep, setLoadingStep] = useState(0);
   const [loadingProgress, setLoadingProgress] = useState(0);
+  const [designs, setDesigns] = useState<DesignResult[]>([]);
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [business, setBusiness] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [genError, setGenError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const canGenerate = brandName.trim().length >= 2 && selectedStyle && selectedProduct;
+  const canGenerate =
+    brandName.trim().length >= 2 && selectedStyle && selectedProduct;
 
-  useEffect(() => {
-    if (step !== "loading") return;
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setLogoFile(file);
+      const reader = new FileReader();
+      reader.onload = (ev) => setLogoPreview(ev.target?.result as string);
+      reader.readAsDataURL(file);
+    }
+  };
 
-    let stepIndex = 0;
-    let progress = 0;
+  const removeLogo = () => {
+    setLogoFile(null);
+    setLogoPreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
-    const progressInterval = setInterval(() => {
-      progress += 1.5;
-      setLoadingProgress(Math.min(progress, 95));
-      if (progress >= 95) clearInterval(progressInterval);
-    }, 80);
-
-    const stepInterval = setInterval(() => {
-      stepIndex++;
-      if (stepIndex < LOADING_STEPS.length) {
-        setLoadingStep(stepIndex);
-      } else {
-        clearInterval(stepInterval);
-        clearInterval(progressInterval);
-        setLoadingProgress(100);
-        setTimeout(() => setStep("results"), 500);
-      }
-    }, 1400);
-
-    return () => {
-      clearInterval(progressInterval);
-      clearInterval(stepInterval);
-    };
-  }, [step]);
-
-  const handleGenerate = () => {
+  const handleGenerate = useCallback(async () => {
     if (!canGenerate) return;
     setLoadingStep(0);
     setLoadingProgress(0);
+    setGenError(null);
+    setDesigns([]);
     setStep("loading");
-  };
+
+    // Start loading animation
+    let stepIdx = 0;
+    const stepInterval = setInterval(() => {
+      stepIdx++;
+      if (stepIdx < LOADING_STEPS.length) {
+        setLoadingStep(stepIdx);
+      }
+    }, 3000);
+
+    let prog = 0;
+    const progInterval = setInterval(() => {
+      prog += 0.5;
+      setLoadingProgress(Math.min(prog, 90));
+    }, 200);
+
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          brandName: brandName.trim(),
+          style: selectedStyle,
+          product: selectedProduct,
+        }),
+      });
+
+      clearInterval(stepInterval);
+      clearInterval(progInterval);
+
+      if (!res.ok) {
+        throw new Error(`Generation failed (${res.status})`);
+      }
+
+      const data = await res.json();
+      const results: DesignResult[] = data.designs || [];
+
+      // Check if we got any images
+      const hasImages = results.some((d: DesignResult) => d.image);
+      if (!hasImages) {
+        throw new Error("No designs were generated. Please try again.");
+      }
+
+      setDesigns(results);
+      setLoadingProgress(100);
+      setTimeout(() => setStep("results"), 400);
+    } catch (err) {
+      clearInterval(stepInterval);
+      clearInterval(progInterval);
+      setGenError(err instanceof Error ? err.message : "Generation failed");
+      setStep("input");
+    }
+  }, [brandName, selectedStyle, selectedProduct, canGenerate]);
 
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -101,7 +147,9 @@ export default function Home() {
           brandName,
           style: selectedStyle,
           product: selectedProduct,
+          hasLogo: !!logoFile,
           source: "design-tool",
+          designCount: designs.filter((d) => d.image).length,
         }),
       });
     } catch {}
@@ -110,12 +158,21 @@ export default function Home() {
     setStep("success");
   };
 
+  const downloadDesign = (dataUrl: string, index: number) => {
+    const link = document.createElement("a");
+    link.href = dataUrl;
+    link.download = `${brandName.toLowerCase().replace(/\s+/g, "-")}-design-${index + 1}.png`;
+    link.click();
+  };
+
   return (
     <div className="min-h-screen flex flex-col">
       {/* Nav */}
       <nav className="flex items-center justify-between px-6 py-4 border-b border-[#1a1a1a]">
         <a href="https://ghostbuilder.com" className="flex items-center gap-2">
-          <span className="text-white font-bold text-xl tracking-tight">GHOST BUILDER</span>
+          <span className="text-white font-bold text-xl tracking-tight">
+            GHOST BUILDER
+          </span>
         </a>
         <a
           href="https://ghostbuilder.com/register"
@@ -146,9 +203,21 @@ export default function Home() {
                   <span className="text-[#C5D82D]">Free. In 60 Seconds.</span>
                 </h1>
                 <p className="text-[#9CA3AF] text-lg max-w-md mx-auto">
-                  No designers. No upfront costs. Just your idea and AI that gets it.
+                  No designers. No upfront costs. Just your idea and AI that
+                  gets it.
                 </p>
               </div>
+
+              {/* Error message */}
+              {genError && (
+                <motion.div
+                  initial={{ opacity: 0, y: -10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-red-500/10 border border-red-500/30 text-red-400 text-sm rounded-xl px-4 py-3 mb-6 text-center"
+                >
+                  {genError}. Try again or adjust your inputs.
+                </motion.div>
+              )}
 
               <div className="space-y-6">
                 {/* Brand Name */}
@@ -162,6 +231,59 @@ export default function Home() {
                     onChange={(e) => setBrandName(e.target.value)}
                     placeholder="e.g. Nightfall, Apex, Raw Quarter..."
                     className="w-full bg-[#111] border border-[#222] rounded-xl px-4 py-3.5 text-white text-lg placeholder:text-[#444] focus:outline-none focus:border-[#C5D82D] transition-colors"
+                    maxLength={40}
+                  />
+                </div>
+
+                {/* Logo Upload */}
+                <div>
+                  <label className="block text-sm font-semibold text-[#9CA3AF] uppercase tracking-wider mb-2">
+                    Logo / Image{" "}
+                    <span className="text-[#444] normal-case font-normal">
+                      (optional)
+                    </span>
+                  </label>
+                  {logoPreview ? (
+                    <div className="flex items-center gap-4 bg-[#111] border border-[#222] rounded-xl p-3">
+                      <img
+                        src={logoPreview}
+                        alt="Logo preview"
+                        className="w-14 h-14 object-contain rounded-lg bg-[#0a0a0a]"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-white truncate">
+                          {logoFile?.name}
+                        </p>
+                        <p className="text-xs text-[#444]">
+                          {logoFile
+                            ? `${(logoFile.size / 1024).toFixed(0)}KB`
+                            : ""}
+                        </p>
+                      </div>
+                      <button
+                        onClick={removeLogo}
+                        className="text-[#666] hover:text-red-400 transition-colors text-sm"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full bg-[#111] border border-dashed border-[#333] rounded-xl px-4 py-6 text-center hover:border-[#C5D82D]/50 transition-colors group"
+                    >
+                      <span className="text-2xl block mb-1">📁</span>
+                      <span className="text-[#666] group-hover:text-[#999] text-sm">
+                        Drop your logo here or click to upload
+                      </span>
+                    </button>
+                  )}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoChange}
+                    className="hidden"
                   />
                 </div>
 
@@ -225,6 +347,10 @@ export default function Home() {
                 >
                   Create My Designs →
                 </motion.button>
+
+                <p className="text-center text-[#333] text-xs">
+                  Powered by AI. Designs generated in under 60 seconds.
+                </p>
               </div>
             </motion.div>
           )}
@@ -242,7 +368,11 @@ export default function Home() {
                 <motion.div
                   className="w-20 h-20 rounded-full bg-[#C5D82D]/10 border border-[#C5D82D]/30 flex items-center justify-center mx-auto mb-6"
                   animate={{ rotate: 360 }}
-                  transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                  transition={{
+                    duration: 2,
+                    repeat: Infinity,
+                    ease: "linear",
+                  }}
                 >
                   <span className="text-3xl">✦</span>
                 </motion.div>
@@ -258,7 +388,8 @@ export default function Home() {
                   </motion.p>
                 </AnimatePresence>
                 <p className="text-[#9CA3AF] text-sm">
-                  Building designs for <span className="text-white font-semibold">{brandName}</span>
+                  Building designs for{" "}
+                  <span className="text-white font-semibold">{brandName}</span>
                 </p>
               </div>
 
@@ -270,7 +401,9 @@ export default function Home() {
                   transition={{ ease: "linear" }}
                 />
               </div>
-              <p className="text-[#444] text-xs mt-2">{Math.round(loadingProgress)}%</p>
+              <p className="text-[#444] text-xs mt-2">
+                {Math.round(loadingProgress)}%
+              </p>
             </motion.div>
           )}
 
@@ -280,7 +413,7 @@ export default function Home() {
               key="results"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="w-full max-w-3xl"
+              className="w-full max-w-4xl"
             >
               <div className="text-center mb-8">
                 <motion.div
@@ -289,51 +422,71 @@ export default function Home() {
                   transition={{ type: "spring", duration: 0.5 }}
                   className="inline-flex items-center gap-2 bg-[#C5D82D]/10 border border-[#C5D82D]/30 text-[#C5D82D] text-sm font-semibold px-4 py-2 rounded-full mb-4"
                 >
-                  ✓ Your designs are ready
+                  ✓ {designs.filter((d) => d.image).length} designs generated
                 </motion.div>
                 <h2 className="text-3xl sm:text-4xl font-bold mb-2">
                   Your brand, ready to sell.
                 </h2>
                 <p className="text-[#9CA3AF]">
-                  4 design concepts for{" "}
-                  <span className="text-white font-semibold">{brandName}</span> -
-                  {" "}{STYLES.find((s) => s.id === selectedStyle)?.label} style
+                  AI-generated designs for{" "}
+                  <span className="text-white font-semibold">{brandName}</span>{" "}
+                  -{" "}
+                  {STYLES.find((s) => s.id === selectedStyle)?.label} on{" "}
+                  {PRODUCTS.find((p) => p.id === selectedProduct)?.label}
                 </p>
               </div>
 
               {/* Design Grid */}
               <div className="grid grid-cols-2 gap-4 mb-8">
-                {DESIGN_CONCEPTS.map((concept, i) => (
+                {designs.map((design, i) => (
                   <motion.div
                     key={i}
                     initial={{ opacity: 0, scale: 0.9 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: i * 0.1 }}
+                    transition={{ delay: i * 0.15 }}
                     className="bg-[#111] border border-[#222] rounded-2xl overflow-hidden group hover:border-[#C5D82D]/40 transition-all"
                   >
-                    {/* Mockup placeholder */}
-                    <div className="aspect-square bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] flex flex-col items-center justify-center relative">
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        {/* Product silhouette */}
-                        <div className="w-32 h-32 sm:w-44 sm:h-44 bg-[#1e1e1e] rounded-lg flex items-center justify-center border border-[#2a2a2a]">
-                          <div className="text-center px-4">
-                            <div className="text-[#C5D82D] font-bold text-sm sm:text-base mb-1 tracking-wider">
-                              {brandName.toUpperCase()}
-                            </div>
-                            <div className="w-full h-0.5 bg-[#C5D82D]/40 mb-1" />
-                            <div className="text-[#444] text-xs">
-                              {concept.label}
-                            </div>
+                    {/* Design image or placeholder */}
+                    <div className="aspect-square bg-gradient-to-br from-[#1a1a1a] to-[#0d0d0d] flex items-center justify-center relative overflow-hidden">
+                      {design.image ? (
+                        <img
+                          src={design.image}
+                          alt={`${brandName} - ${design.name}`}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="text-center px-4">
+                          <div className="text-[#333] text-sm mb-2">
+                            Generation failed
+                          </div>
+                          <div className="text-[#222] text-xs">
+                            {design.error || "Try again"}
                           </div>
                         </div>
+                      )}
+                      <div className="absolute top-3 left-3 text-xs bg-black/60 backdrop-blur-sm text-white px-2 py-0.5 rounded-full font-medium">
+                        #{i + 1} {design.name}
                       </div>
-                      <div className="absolute top-3 left-3 text-xs bg-[#C5D82D]/10 text-[#C5D82D] border border-[#C5D82D]/20 px-2 py-0.5 rounded-full font-medium">
-                        #{i + 1}
-                      </div>
+                      {design.image && (
+                        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all flex items-center justify-center opacity-0 group-hover:opacity-100">
+                          <button
+                            onClick={() =>
+                              design.image && downloadDesign(design.image, i)
+                            }
+                            className="bg-white/90 text-black text-sm font-semibold px-4 py-2 rounded-lg hover:bg-white transition-colors"
+                          >
+                            Download
+                          </button>
+                        </div>
+                      )}
                     </div>
                     <div className="p-3">
-                      <p className="font-semibold text-sm text-white">{concept.label}</p>
-                      <p className="text-[#9CA3AF] text-xs mt-0.5">{concept.desc}</p>
+                      <p className="font-semibold text-sm text-white">
+                        {design.name}
+                      </p>
+                      <p className="text-[#9CA3AF] text-xs mt-0.5">
+                        {brandName} - {STYLES.find((s) => s.id === selectedStyle)?.label}
+                      </p>
                     </div>
                   </motion.div>
                 ))}
@@ -347,7 +500,7 @@ export default function Home() {
                   whileTap={{ scale: 0.98 }}
                   className="flex-1 py-4 bg-[#C5D82D] text-[#070707] rounded-xl font-bold text-lg hover:bg-[#d4ea3a] transition-all shadow-[0_0_30px_rgba(197,216,45,0.2)]"
                 >
-                  Download Mockups Free
+                  Download All Free
                 </motion.button>
                 <motion.a
                   href="https://ghostbuilder.com/register"
@@ -359,7 +512,17 @@ export default function Home() {
                 </motion.a>
               </div>
 
-              <p className="text-center text-[#444] text-xs mt-4">
+              {/* Regenerate */}
+              <div className="text-center mt-4">
+                <button
+                  onClick={handleGenerate}
+                  className="text-[#9CA3AF] text-sm hover:text-[#C5D82D] transition-colors"
+                >
+                  Not happy? Generate new designs →
+                </button>
+              </div>
+
+              <p className="text-center text-[#333] text-xs mt-3">
                 No credit card required. Ships in days, not weeks.
               </p>
             </motion.div>
@@ -383,7 +546,7 @@ export default function Home() {
               </motion.div>
               <h2 className="text-3xl font-bold mb-3">You&apos;re in.</h2>
               <p className="text-[#9CA3AF] mb-8">
-                Check your email for your mockups. Ready to start selling?
+                Your {brandName} designs are ready. Let&apos;s get you selling.
               </p>
               <a
                 href="https://ghostbuilder.com/register"
@@ -400,10 +563,13 @@ export default function Home() {
                   setEmail("");
                   setName("");
                   setBusiness("");
+                  setDesigns([]);
+                  setLogoFile(null);
+                  setLogoPreview(null);
                 }}
-                className="mt-4 text-[#9CA3AF] text-sm hover:text-white transition-colors"
+                className="mt-4 text-[#9CA3AF] text-sm hover:text-white transition-colors block mx-auto"
               >
-                Generate another brand
+                Design another brand
               </button>
             </motion.div>
           )}
@@ -418,7 +584,9 @@ export default function Home() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 px-4"
-            onClick={(e) => e.target === e.currentTarget && setShowEmailModal(false)}
+            onClick={(e) =>
+              e.target === e.currentTarget && setShowEmailModal(false)
+            }
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
@@ -426,9 +594,10 @@ export default function Home() {
               exit={{ scale: 0.9, opacity: 0 }}
               className="bg-[#111] border border-[#222] rounded-2xl p-6 w-full max-w-md"
             >
-              <h3 className="text-2xl font-bold mb-2">Get Your Mockups</h3>
+              <h3 className="text-2xl font-bold mb-2">Get Your Designs</h3>
               <p className="text-[#9CA3AF] text-sm mb-5">
-                We&apos;ll send your {brandName} designs straight to your inbox. Free.
+                Enter your email and we&apos;ll send your {brandName} designs.
+                Free. No spam.
               </p>
               <form onSubmit={handleEmailSubmit} className="space-y-3">
                 <input
@@ -464,7 +633,7 @@ export default function Home() {
                 </motion.button>
               </form>
               <p className="text-[#444] text-xs text-center mt-3">
-                No spam. Just your designs and a link to start selling.
+                No spam. Just your designs and how to start selling.
               </p>
             </motion.div>
           </motion.div>
@@ -475,7 +644,10 @@ export default function Home() {
       <footer className="text-center py-6 border-t border-[#111]">
         <p className="text-[#333] text-xs">
           Powered by{" "}
-          <a href="https://ghostbuilder.com" className="text-[#555] hover:text-[#C5D82D] transition-colors">
+          <a
+            href="https://ghostbuilder.com"
+            className="text-[#555] hover:text-[#C5D82D] transition-colors"
+          >
             Ghost Builder
           </a>{" "}
           - The team behind $1B+ in streetwear
