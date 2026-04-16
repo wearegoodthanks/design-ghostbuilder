@@ -23,7 +23,7 @@ const PRODUCT_CONTEXT: Record<string, string> = {
 const MOCKUP_SCENES: Record<string, string[]> = {
   tee: [
     "worn by a person standing casually in an urban street setting, professional product photography, natural lighting",
-    "laid flat on a dark concrete surface, styled with accessories, overhead shot, studio lighting",
+    "laid flat on a concrete surface, styled with accessories, overhead shot, studio lighting",
     "worn by a person in a creative studio space, candid lifestyle shot, warm lighting",
     "hanging on a wooden hanger against a textured wall, clean product photography, soft shadows",
   ],
@@ -47,8 +47,8 @@ const MOCKUP_SCENES: Record<string, string[]> = {
   ],
 };
 
+// Only 3 AI variations now (design #1 is the user's original logo)
 const DESIGN_VARIATIONS = [
-  { name: "Wordmark", prompt: "typographic wordmark logo design, brand name prominently featured as the main design element" },
   { name: "Graphic", prompt: "graphic logo mark with icon and text, illustrated emblem style" },
   { name: "Badge", prompt: "circular or shield badge design, vintage badge aesthetic with brand name" },
   { name: "Abstract", prompt: "abstract modern graphic design, contemporary art influence with brand name integrated" },
@@ -101,11 +101,12 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       brandName: string;
       style: string;
       product: string;
+      color: string;
       logoBase64?: string;
       logoMimeType?: string;
     };
 
-    const { brandName, style, product, logoBase64, logoMimeType } = body;
+    const { brandName, style, product, color = "charcoal", logoBase64, logoMimeType } = body;
     const hasLogo = Boolean(logoBase64 && logoMimeType);
 
     if (!brandName || !style || !product) {
@@ -125,7 +126,56 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       ? `I have attached the brand's existing logo. Use this logo as a reference - incorporate its style, colors, and visual identity into the design. The design should feel like it belongs to the same brand.`
       : ``;
 
-    // STEP 1: Generate 4 designs in parallel
+    const colorNames: Record<string, string> = {
+      black: "black",
+      charcoal: "dark charcoal grey",
+      white: "white",
+      navy: "navy blue",
+      forest: "forest green",
+      maroon: "maroon burgundy",
+    };
+    const garmentColor = colorNames[color] || "dark charcoal grey";
+    
+    // Determine if design should use light or dark elements based on garment
+    const lightGarment = color === "white";
+    const designColorInstruction = lightGarment
+      ? "The design elements must use DARK colors (black, dark grey, dark accents) so they contrast on the light garment."
+      : "The design elements must use WHITE, light colors, or bright accent colors so they contrast on the dark garment.";
+
+    const productNames: Record<string, string> = {
+      tee: `${garmentColor} heavyweight premium t-shirt`,
+      hoodie: `${garmentColor} heavyweight pullover hoodie`,
+      crew: `${garmentColor} crew neck sweatshirt`,
+      cap: `${garmentColor} structured snapback cap`,
+    };
+
+    // STEP 1: If user uploaded a logo, create mockup of original logo first
+    let originalMockup: { name: string; design: string | null; mockup: string | null; error: string | null } | null = null;
+    
+    if (hasLogo) {
+      const logoDataUrl = `data:${logoMimeType};base64,${logoBase64}`;
+      const scene = scenes[0];
+      const mockupPrompt = `Place this logo/design onto a ${productNames[product] || "charcoal t-shirt"}.
+Use a ${garmentColor} colored garment.
+Show the product ${scene}.
+The design should be clearly visible, properly scaled and centered on the product.
+Photorealistic, professional product photography.
+Do NOT add any text, watermarks, or labels. Just the product with the design.`;
+
+      const mockupResult = await generateImage(apiKey, [
+        { text: mockupPrompt },
+        { inlineData: { mimeType: logoMimeType, data: logoBase64 } },
+      ]);
+
+      originalMockup = {
+        name: "Your Design",
+        design: logoDataUrl,
+        mockup: mockupResult.image,
+        error: mockupResult.error,
+      };
+    }
+
+    // STEP 2: Generate 3 new design variations in parallel
     const designPromises = DESIGN_VARIATIONS.map(async (variation) => {
       const prompt = `Create a professional apparel graphic design for a brand called "${brandName}". 
 ${logoContext}
@@ -134,7 +184,7 @@ Design type: ${variation.prompt}.
 The design should look like it belongs ${productContext}.
 Create ONLY the graphic design artwork on a plain solid dark background (#111111). 
 No mockup, no product, just the design/artwork itself. 
-IMPORTANT: The design elements (text, graphics, icons) must use WHITE, light colors, or bright accent colors so they are clearly visible when printed on a dark garment. Avoid large areas of black or very dark colors in the design itself.
+${designColorInstruction}
 High quality, print-ready, professional brand design.
 The brand name "${brandName}" should be clearly visible in the design.`;
 
@@ -148,41 +198,32 @@ The brand name "${brandName}" should be clearly visible in the design.`;
 
     const designResults = await Promise.all(designPromises);
 
-    // STEP 2: Generate lifestyle mockups for successful designs
+    // STEP 3: Generate lifestyle mockups for the new designs
     const mockupPromises = designResults.map(async (design, i) => {
       if (!design.image) {
         return { name: DESIGN_VARIATIONS[i].name, design: null, mockup: null, error: design.error };
       }
 
-      // Extract base64 from data URL
       const base64Match = design.image.match(/^data:([^;]+);base64,(.+)$/);
       if (!base64Match) {
         return { name: DESIGN_VARIATIONS[i].name, design: design.image, mockup: null, error: "Invalid design data" };
       }
 
       const [, mimeType, b64Data] = base64Match;
-      const scene = scenes[i % scenes.length];
+      // Offset scene index by 1 since original logo uses scene[0]
+      const scene = scenes[(i + 1) % scenes.length];
 
-      const productNames: Record<string, string> = {
-        tee: "dark charcoal grey heavyweight premium t-shirt",
-        hoodie: "dark charcoal grey heavyweight pullover hoodie",
-        crew: "dark charcoal grey crew neck sweatshirt",
-        cap: "dark charcoal grey structured snapback cap",
-      };
-
-      const mockupPrompt = `Place this graphic design onto a ${productNames[product] || "dark charcoal grey t-shirt"}.
-IMPORTANT: Use a CHARCOAL GREY or DARK HEATHER garment color (NOT pure black) so the design artwork is clearly visible and stands out against the fabric.
+      const mockupPrompt = `Place this graphic design onto a ${productNames[product] || "charcoal t-shirt"}.
+Use a ${garmentColor} colored garment.
 Show the product ${scene}.
 The design should be clearly visible, properly scaled and centered on the product.
 Photorealistic, professional product photography.
 Do NOT add any text, watermarks, or labels. Just the product with the design.`;
 
-      const mockupParts: any[] = [
+      const mockupResult = await generateImage(apiKey, [
         { text: mockupPrompt },
         { inlineData: { mimeType, data: b64Data } },
-      ];
-
-      const mockupResult = await generateImage(apiKey, mockupParts);
+      ]);
 
       return {
         name: DESIGN_VARIATIONS[i].name,
@@ -192,9 +233,14 @@ Do NOT add any text, watermarks, or labels. Just the product with the design.`;
       };
     });
 
-    const results = await Promise.all(mockupPromises);
+    const variationResults = await Promise.all(mockupPromises);
 
-    return new Response(JSON.stringify({ designs: results }), { status: 200, headers });
+    // Combine: original logo mockup first, then variations
+    const allDesigns = originalMockup
+      ? [originalMockup, ...variationResults]
+      : variationResults;
+
+    return new Response(JSON.stringify({ designs: allDesigns }), { status: 200, headers });
   } catch (err) {
     return new Response(JSON.stringify({ error: String(err) }), { status: 500, headers });
   }

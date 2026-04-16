@@ -8,12 +8,24 @@ const spaceGrotesk = Space_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "Free Brand Design Tool | Ghost Builder",
-  description: "Design your brand in 60 seconds. Free AI-generated designs and mockups. No designers. No upfront costs.",
+  metadataBase: new URL("https://design.ghostbuilder.com"),
+  title: "Design Your Brand | Ghost Builder",
+  description: "Turn your idea into a real brand. Professional designs and product mockups generated for free. Powered by the team behind $1B+ in streetwear.",
   openGraph: {
-    title: "Design Your Brand Free | Ghost Builder",
-    description: "Generate professional designs and product mockups for your brand in under 60 seconds.",
-    images: ["/og-image.png"],
+    title: "Design Your Brand | Ghost Builder",
+    description: "Turn your idea into a real brand. Professional designs and product mockups generated for free.",
+    url: "https://design.ghostbuilder.com",
+    siteName: "Ghost Builder",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Design Your Brand | Ghost Builder",
+    description: "Turn your idea into a real brand. Professional designs and product mockups generated for free.",
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 
